@@ -84,7 +84,7 @@ namespace Nancy.Authentication.Forms
                     return false;
                 }
 
-                if (this.UserMapper == null ^ this.AsyncUserMapper == null)
+                if ((this.UserMapper == null) == (this.AsyncUserMapper == null))
                 {
                     return false;
                 }
