@@ -42,7 +42,7 @@ namespace Nancy.Authentication.Forms.Tests
         [Fact]
         public void Should_be_valid_with_all_properties_set_and_an_async_user_mapper()
         {
-            var result = asyncConfig.IsValid;
+            var result = this.asyncConfig.IsValid;
 
             result.ShouldBeTrue();
         }
@@ -81,7 +81,7 @@ namespace Nancy.Authentication.Forms.Tests
         [Fact]
         public void Should_not_be_valid_with_non_null_username_mapper_and_non_null_async_username_mapper()
         {
-            config.AsyncUserMapper = asyncConfig.AsyncUserMapper;
+            config.AsyncUserMapper = this.asyncConfig.AsyncUserMapper;
 
             var result = config.IsValid;
 
