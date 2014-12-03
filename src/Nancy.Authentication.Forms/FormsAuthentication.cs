@@ -61,7 +61,7 @@ namespace Nancy.Authentication.Forms
 
             if (configuration.AsyncUserMapper != null)
             {
-                pipelines.BeforeRequest.AddItemToStartOfPipeline(LoadAuthenticationAsync);
+                pipelines.BeforeRequest.AddItemToStartOfPipeline(GetLoadAuthenticationAsyncHook(configuration));
             }
             else
             {
@@ -194,6 +194,46 @@ namespace Nancy.Authentication.Forms
         }
 
         /// <summary>
+        /// Gets the pre request hook for loading the authenticated user's details
+        /// from the cookie.
+        /// </summary>
+        /// <param name="configuration">Forms authentication configuration to use</param>
+        /// <returns>Pre request hook async delegate.</returns>
+        private static Func<NancyContext, CancellationToken, Task<Response>> GetLoadAuthenticationAsyncHook(FormsAuthenticationConfiguration configuration)
+        {
+            if (configuration == null)
+            {
+                throw new ArgumentNullException("configuration");
+            }
+
+            return (context, cancellationToken) =>
+            {
+                var userGuid = GetAuthenticatedUserFromCookie(context, configuration);
+
+                if (userGuid == Guid.Empty)
+                {
+                    return TaskHelpers.GetCompletedTask<Response>(null);
+                }
+
+                var task = configuration.AsyncUserMapper.GetUserFromIdentifierAsync(userGuid, context, cancellationToken);
+
+                return task.ContinueWith<Response>(antecedent =>
+                {
+                    if (antecedent.IsFaulted)
+                    {
+                        throw antecedent.Exception;
+                    }
+                    if (antecedent.IsCanceled)
+                    {
+                        throw new OperationCanceledException(cancellationToken);
+                    }
+                    context.CurrentUser = antecedent.Result;
+                    return null;
+                }, TaskContinuationOptions.ExecuteSynchronously);
+            };
+        }
+
+        /// <summary>
         /// Gets the post request hook for redirecting to the login page
         /// </summary>
         /// <param name="configuration">Forms authentication configuration to use</param>
@@ -213,45 +253,6 @@ namespace Nancy.Authentication.Forms
                             context.ToFullPath("~" + context.Request.Path + HttpUtility.UrlEncode(context.Request.Url.Query))));
                     }
                 };
-        }
-
-        /// <summary>
-        /// Asynchronous loading the authenticated user's details.
-        /// </summary>
-        /// <param name="context">
-        /// Current context
-        /// </param>
-        /// <param name="cancellationToken">
-        /// A cancellation token that can be used by other objects or threads to receive notice of cancellation.
-        /// </param>
-        /// <returns>The task object representing the asynchronous operation.</returns>
-        private static Task<Response> LoadAuthenticationAsync(NancyContext context, CancellationToken cancellationToken)
-        {
-            var userGuid = GetAuthenticatedUserFromCookie(context, currentConfiguration);
-
-            if (userGuid == Guid.Empty)
-            {
-                return TaskHelpers.GetCompletedTask<Response>(null);
-            }
-
-            var task = currentConfiguration.AsyncUserMapper.GetUserFromIdentifierAsync(userGuid, context, cancellationToken);
-
-            return task.ContinueWith<Response>(antecedent =>
-                {
-                    if (antecedent.IsFaulted)
-                    {
-                        throw antecedent.Exception;
-                    }
-                    else if (antecedent.IsCanceled)
-                    {
-                        throw new OperationCanceledException(cancellationToken);
-                    }
-                    else
-                    {
-                        context.CurrentUser = antecedent.Result;
-                        return null;
-                    }
-                }, TaskContinuationOptions.ExecuteSynchronously);
         }
 
         /// <summary>
